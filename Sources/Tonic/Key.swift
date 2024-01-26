@@ -16,10 +16,31 @@ public struct Key: Equatable {
     public let noteSet: NoteSet
 
     /// All the traditional triads representable root, third, and fifth from each note in the key
-    public let primaryTriads: [Chord]
+    public func primaryTriads() ->[Chord] {
+        let table = ChordTable.shared
+        var primaryTriads: [Chord] = []
+        let allowablePrimaryTriads: [ChordType] = [.majorTriad, .minorTriad, .diminishedTriad, .augmentedTriad]
+
+        for (_, chord) in table.chords where chord.noteClassSet.isSubset(of: noteSet.noteClassSet) {
+            if allowablePrimaryTriads.contains(chord.type) {
+                primaryTriads.append(Chord(chord.root, type: chord.type))
+            }
+        }
+
+        let primaryTriadsStartingWithC = primaryTriads.sorted(by: { $0.root.letter < $1.root.letter })
+        let rootPosition = primaryTriadsStartingWithC.firstIndex(where: { $0.root == root }) ?? 0
+        return Array(primaryTriadsStartingWithC.rotatingLeft(positions: rootPosition))
+    }
 
     /// All chords that fit in the key
-    public let chords: [Chord]
+    public func chords() -> [Chord] {
+        let table = ChordTable.shared
+        var chords: [Chord] = []
+        for (_, chord) in table.chords where chord.noteClassSet.isSubset(of: noteSet.noteClassSet) {
+            chords.append(Chord(chord.root, type: chord.type))
+        }
+        return chords
+    }
 
     /// Initialize the key
     /// - Parameters:
@@ -36,26 +57,6 @@ public struct Key: Equatable {
             }
         }
         noteSet = NoteSet(notes: r)
-
-        let table = ChordTable.shared
-
-        var chords: [Chord] = []
-        var primaryTriads: [Chord] = []
-
-        let allowablePrimaryTriads: [ChordType] = [.majorTriad, .minorTriad, .diminishedTriad, .augmentedTriad]
-
-        for (_, chord) in table.chords where chord.noteClassSet.isSubset(of: noteSet.noteClassSet) {
-            chords.append(Chord(chord.root, type: chord.type))
-            if allowablePrimaryTriads.contains(chord.type) {
-                primaryTriads.append(Chord(chord.root, type: chord.type))
-            }
-        }
-
-        let primaryTriadsStartingWithC = primaryTriads.sorted(by: { $0.root.letter < $1.root.letter })
-        let rootPosition = primaryTriadsStartingWithC.firstIndex(where: { $0.root == root }) ?? 0
-        self.primaryTriads = Array(primaryTriadsStartingWithC.rotatingLeft(positions: rootPosition))
-
-        self.chords = chords
     }
 
     /// The type of accidental to use in this key
@@ -81,3 +82,4 @@ extension RangeReplaceableCollection {
         return self[index...] + self[..<index]
     }
 }
+
