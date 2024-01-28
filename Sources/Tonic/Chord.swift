@@ -190,6 +190,6 @@ extension Chord {
             finalNotes.append(notes[index])
         }
 
-        return finalNotes
+        return notes.sorted()
     }
 }

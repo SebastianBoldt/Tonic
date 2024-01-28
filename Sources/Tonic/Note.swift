@@ -136,6 +136,9 @@ public struct Note: Equatable, Hashable {
         let newOctave = (Int(pitch.midiNoteNumber) + shift.semitones) / 12 - 1
         for accidental in Accidental.allCases {
             newNote = Note(newLetter, accidental: accidental, octave: newOctave)
+            if newNote.letter == .B && newNote.accidental == .sharp {
+                newNote.octave = newNote.octave - 1
+            }
             if (newNote.noteNumber % 12) == ((Int(noteNumber) + shift.semitones) % 12) {
                 return newNote
             }
