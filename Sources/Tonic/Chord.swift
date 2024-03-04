@@ -94,7 +94,7 @@ public struct Chord: Equatable, Codable {
     /// - Returns: Roman Numeral notation
     public func romanNumeralNotation(in key: Key) -> String? {
         let capitalRomanNumerals = ["I", "II", "III", "IV", "V", "VI", "VII"]
-        if let index = key.primaryTriads().firstIndex(where: { $0 == self }) {
+        if let index = key.primaryTriads.firstIndex(where: { $0 == self }) {
             let romanNumeral = capitalRomanNumerals[index]
             switch type {
             case .majorTriad: return romanNumeral
@@ -125,9 +125,100 @@ extension Chord: CustomStringConvertible {
     public var description: String {
         return "\(root)\(type)"
     }
+    
+    /// Name of chord using slash chords
+    public var slashDescription: String {
+        if inversion > 0 {
+            return "\(root)\(type)/\(bassNote)"
+        } else {
+            return description
+        }
+    }
+    
+    /// Name of chord using specialized Chord Symbol Fonts Norfolk or Pori from
+    /// NotationExpress: https://www.notationcentral.com/product/norfolk-fonts-for-sibelius/
+    public var chordFontDescription: String {
+        return "\(root.chordFontDescription)\(type.chordFontDescription)"
+    }
+    
+    /// Name of chord with slash notation using specialized Chord Symbol Fonts Norfolk or Pori from
+    /// NotationExpress: https://www.notationcentral.com/product/norfolk-fonts-for-sibelius/
+    public var slashChordFontDescription: String {
+        if inversion > 0 {
+            return "\(root.chordFontDescription)\(type.chordFontDescription)?\(bassNote.chordFontDescription)"
+        } else {
+            return chordFontDescription
+        }
+    }
+    
+    /// Bass Note computed from inversion and root note
+    /// Useful for custom rendering of slash notation
+    public var bassNote: NoteClass {
+        switch inversion {
+            case 1...4:
+                if let bass = root.canonicalNote.shiftUp(type.intervals[inversion - 1]) {
+                    return bass.noteClass
+                }
+            default:
+                break
+        }
+        return root.canonicalNote.noteClass
+    }
 }
 
 extension Chord {
+
+    public var accidentalCount: Int {
+        var count = 0
+        for note in self.noteClasses {
+            switch note.accidental {
+                case .natural:
+                    break
+                case .flat, .sharp:
+                    count += 1
+                case .doubleFlat, .doubleSharp:
+                    count += 2
+            }
+        }
+        return count
+    }
+
+    /// Get chords that match a set of pitches, ranking by least number of accidentals
+    public static func getRankedChords(from pitchSet: PitchSet) -> [Chord] {
+        var noteArrays: Set<[Note]> = []
+        var returnArray: [Chord] = []
+        
+        for key in Key.circleOfFifths {
+            noteArrays.insert(pitchSet.array.map { Note(pitch: $0, key: key) })
+        }
+        
+        for key in Key.circleOfFourths {
+            noteArrays.insert(pitchSet.array.map { Note(pitch: $0, key: key) })
+        }
+        
+        for noteArray in noteArrays {
+            returnArray.append(contentsOf: Chord.getRankedChords(from: noteArray))
+        }
+        
+        // Sorts anti-alphabetical, but the net effect is to pefer flats to sharps
+        returnArray.sort { $0.root.letter > $1.root.letter }
+
+        // order the array by least number of accidentals
+        returnArray.sort { $0.accidentalCount < $1.accidentalCount }
+
+        // order the array preferring root position
+        returnArray.sort { $0.inversion < ($1.inversion > 0 ? 1 : 0) }
+
+        // prefer root notes not being uncommon enharmonics
+        returnArray.sort { ($0.root.canonicalNote.isUncommonEnharmonic ? 1 : 0) < ($1.root.canonicalNote.isUncommonEnharmonic ? 1 : 0) }
+
+
+        return returnArray
+    }
+    /// Get chords from actual notes (spelling matters, C# F G# will not return a C# major)
+    /// Use pitch set version of this function for all enharmonic chords
+    /// The ranking is based on how low the root note of the chord appears, for example we
+    /// want to list the notes C, E, G, A as C6 if the C is in the bass
     public static func getRankedChords(from notes: [Note]) -> [Chord] {
         let potentialChords = ChordTable.shared.getAllChordsForNoteSet(NoteSet(notes: notes))
         let orderedNotes = notes.sorted(by: { f, s in  f.noteNumber < s.noteNumber })
@@ -137,7 +228,7 @@ extension Chord {
             ranks.append((rank ?? 0, chord))
         }
         let sortedRanks = ranks.sorted(by: { $0.0 < $1.0 })
-
+            
         return sortedRanks.map({ $0.1 })
     }
 }
@@ -169,8 +260,8 @@ extension Chord {
             }
         }
 
-        // Stores the final notes shifted to the right octaves based on the inversion
-        var finalNotes: [Note] = []
+        // Stores all shifted notes 
+        var shiftedNotes: [Note] = []
 
         // Iterate over all inversion steps
         for step in 0..<inversion {
@@ -180,14 +271,14 @@ extension Chord {
 
             // if the last note still is higher increase by one again
             // This usually happens if a chord is longer than 2 Octaves
-            if let last = finalNotes.last ?? notes.last {
+            if let last = shiftedNotes.last ?? notes.last {
                 if notes[index].intValue < last.intValue {
                     notes[index].octave += 1
                 }
             }
             // Append the note with the right octave to a new array to we have a properly
             // sorted array in the end
-            finalNotes.append(notes[index])
+            shiftedNotes.append(notes[index])
         }
 
         return notes.sorted()

@@ -14,6 +14,27 @@ public enum Letter: Int, CaseIterable, Equatable, Hashable, Codable {
     }
 }
 
+extension Letter: CustomStringConvertible {
+    public var description: String {
+        switch self {
+            case .C:
+                return "C"
+            case .D:
+                return "D"
+            case .E:
+                return "E"
+            case .F:
+                return "F"
+            case .G:
+                return "G"
+            case .A:
+                return "A"
+            case .B:
+                return "B"
+        }
+    }
+}
+
 extension Letter: Comparable {
     public static func < (lhs: Letter, rhs: Letter) -> Bool {
         lhs.rawValue < rhs.rawValue

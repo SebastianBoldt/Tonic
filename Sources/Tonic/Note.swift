@@ -46,6 +46,10 @@ public struct Note: Equatable, Hashable, Codable {
                 noteInKey = note
             }
         }
+        // The octave is wrong if the letter is C and we've flattened into the previous octave
+        if noteInKey?.noteClass.letter == .C && [Accidental.flat, Accidental.doubleFlat].contains(noteInKey?.accidental) {
+            octave += 1
+        }
 
         if let note = noteInKey {
             noteClass = note.noteClass
@@ -80,11 +84,11 @@ public struct Note: Equatable, Hashable, Codable {
     /// MIDI Note 0-127 starting at C
     public var noteNumber: Int8 {
         let octaveBounds = ((octave + 1) * 12) ... ((octave + 2) * 12)
-        var note = Int(noteClass.letter.baseNote)
+        var note = Int(noteClass.letter.baseNote) + Int(noteClass.accidental.rawValue)
         while !octaveBounds.contains(note) {
             note += 12
         }
-        return Int8(note) + noteClass.accidental.rawValue
+        return Int8(note)
     }
 
     /// The pitch for the note
@@ -108,7 +112,6 @@ public struct Note: Equatable, Hashable, Codable {
     /// - Parameter shift: The interval by which to shift
     /// - Returns: New note the correct distance away
     public func shiftDown(_ shift: Interval) -> Note? {
-        var newNote = Note(.C, accidental: .natural, octave: 0)
         var newLetterIndex = (noteClass.letter.rawValue - (shift.degree - 1))
         let newOctave = (Int(pitch.midiNoteNumber) - shift.semitones) / 12 - 1
 
@@ -118,7 +121,7 @@ public struct Note: Equatable, Hashable, Codable {
 
         let newLetter = Letter(rawValue: newLetterIndex % Letter.allCases.count)!
         for accidental in Accidental.allCases {
-            newNote = Note(newLetter, accidental: accidental, octave: newOctave)
+            let newNote = Note(newLetter, accidental: accidental, octave: newOctave)
             if (newNote.noteNumber % 12) == ((Int(noteNumber) - shift.semitones) % 12) {
                 return newNote
             }
@@ -130,16 +133,15 @@ public struct Note: Equatable, Hashable, Codable {
     /// - Parameter shift: The interval by which to shift
     /// - Returns: New note the correct distance away
     public func shiftUp(_ shift: Interval) -> Note? {
-        var newNote = Note(.C, accidental: .natural, octave: 0)
         let newLetterIndex = (noteClass.letter.rawValue + (shift.degree - 1))
         let newLetter = Letter(rawValue: newLetterIndex % Letter.allCases.count)!
-        let newOctave = (Int(pitch.midiNoteNumber) + shift.semitones) / 12 - 1
+        let newMidiNoteNumber = Int(pitch.midiNoteNumber) + shift.semitones
+
+        let newOctave = newMidiNoteNumber / 12 - 1
+
         for accidental in Accidental.allCases {
-            newNote = Note(newLetter, accidental: accidental, octave: newOctave)
-            if newNote.letter == .B && newNote.accidental == .sharp {
-                newNote.octave = newNote.octave - 1
-            }
-            if (newNote.noteNumber % 12) == ((Int(noteNumber) + shift.semitones) % 12) {
+            let newNote = Note(newLetter, accidental: accidental, octave: newOctave)
+            if newNote.noteNumber % 12 == newMidiNoteNumber % 12 {
                 return newNote
             }
         }
@@ -171,5 +173,12 @@ extension Note: CustomStringConvertible {
     /// String representation of the note, including octave
     public var description: String {
         "\(noteClass)\(octave)"
+    }
+}
+
+extension Note {
+    var isUncommonEnharmonic: Bool {
+        let uglyNotes: [NoteClass] = [.Cb, .Es, .Fb, .Bs]
+        return uglyNotes.contains(self.noteClass)
     }
 }
